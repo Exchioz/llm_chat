@@ -1,11 +1,23 @@
 services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./ollama_data:/root/.ollama
+      - ./start-ollama.sh:/start-ollama.sh
+    networks:
+      - chat_network
+    entrypoint: ["/bin/bash", "-c", "ollama serve & sleep 5 && ollama pull ${OPENAI_MODEL:-qwen3:1.7b} && wait $(jobs -p)"]
+
   postgres:
     image: postgres:latest
     container_name: chat_postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: mypassword
-      POSTGRES_DB: chat_history
+      POSTGRES_USER: ${PGUSER:-postgres}
+      POSTGRES_PASSWORD: ${PGPASSWORD:-mypassword}
+      POSTGRES_DB: ${PGDB:-chat_history}
     ports:
       - "5432:5432"
     networks:
@@ -22,12 +34,14 @@ services:
     environment:
       PGHOST: postgres
       PGPORT: 5432
-      PGUSER: postgres
-      PGPASSWORD: mypassword
-      PGDB: chat_history
-      OPENAI_API_KEY: sk-proj-...
-      OPENAI_MODEL: gpt-4o-mini
+      PGUSER: ${PGUSER:-postgres}
+      PGPASSWORD: ${PGPASSWORD:-mypassword}
+      PGDB: ${PGDB:-chat_history}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
     depends_on:
+      - ollama
       - postgres
     networks:
       - chat_network

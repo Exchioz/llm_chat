@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Config(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file="../.env",
         env_file_encoding="utf-8"
     )
 
@@ -15,8 +15,8 @@ class Config(BaseSettings):
 
     # OpenAI API
     openai_api_key: str
-    openai_base_url: str = "https://api.openai.com/v1"
-    openai_model: str = "gpt-4o-mini"
+    openai_base_url: str
+    openai_model: str
 
     # Etc
     number_last_message: int = 3

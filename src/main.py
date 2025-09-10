@@ -1,3 +1,4 @@
+import re
 import uvicorn
 import psycopg
 import logging
@@ -32,7 +33,11 @@ def chat(request: ChatRequest):
         PostgresChatMessageHistory.create_tables(conn, "message_store")
 
         history = PostgresChatMessageHistory("message_store", session_id, sync_connection=conn)
-        model = ChatOpenAI(model=config.openai_model, api_key=config.openai_api_key)
+        model = ChatOpenAI(
+            base_url=config.openai_base_url,
+            api_key=config.openai_api_key,
+            model=config.openai_model
+        )
         model_tools = model.bind_tools(tools)
 
         history.add_user_message(user_input)
@@ -54,21 +59,23 @@ def chat(request: ChatRequest):
                 tool_args = tool_call.get("args")
                 tool_id = tool_call.get("id")
                 tool_output = tool_map[tool_name].invoke(tool_args)
+                logger.info(f"Tool {tool_name} called with args {tool_args}, output: {tool_output}")
 
                 tool_messages.append(ToolMessage(content=tool_output, tool_call_id=tool_id))
             
             final_messages = messages + [response] + tool_messages
             response = model_tools.invoke(final_messages)
 
-        history.add_ai_message(response)
-        logger.info(f"AI response: {response.content}")
+        cleaned_response = re.sub(r"<think>.*?<\/think>", "", response.content, flags=re.DOTALL).strip()
+        history.add_ai_message(cleaned_response)
+        logger.info(f"AI response: {cleaned_response}")
 
-        return ChatResponse(session_id=session_id, ai_response=response.content)
+        return ChatResponse(session_id=session_id, ai_response=cleaned_response)
 
 
 @app.exception_handler(psycopg.Error)
 async def database_exception_handler(request: Request, exc: psycopg.Error):
-    logger.error(f"Database error: {exc}", exc_info=True)
+    logger.error(f"Database error: {exc}")
     return JSONResponse(
         status_code=500,
         content={"message": "Database error occurred", "details": str(exc)},
@@ -86,7 +93,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    logger.error(f"Unhandled exception: {exc}")
     return JSONResponse(
         status_code=500,
         content={"message": "An unexpected error occurred", "details": str(exc)},
